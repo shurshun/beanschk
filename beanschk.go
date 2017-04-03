@@ -10,18 +10,15 @@ import (
 )
 
 var (
-	LOCAL_SRV  string = "127.0.0.1:11300"
-	CRIT_LIMIT int    = 1000
-	WARN_LIMIT int    = 500
+	LOCAL_SRV  = flag.String("h", "127.0.0.1:11300", "ip:port of the local beanstalk server")
+	CRIT_LIMIT = flag.Int("c", 1000, "Critical limit")
+	WARN_LIMIT = flag.Int("w", 500, "Warning limit")
 
 	errors    []string
 	exit_code int = 0
 )
 
 func init() {
-	flag.StringVar(&LOCAL_SRV, "h", LOCAL_SRV, "ip:port of the local beanstalk server")
-	flag.IntVar(&CRIT_LIMIT, "c", CRIT_LIMIT, "Critical limit")
-	flag.IntVar(&WARN_LIMIT, "w", WARN_LIMIT, "Warning limit")
 	flag.Parse()
 }
 
@@ -43,7 +40,7 @@ func setExitCode(code int) {
 }
 
 func main() {
-	c, err := beanstalk.Dial("tcp", LOCAL_SRV)
+	c, err := beanstalk.Dial("tcp", *LOCAL_SRV)
 
 	check(err)
 
@@ -65,10 +62,10 @@ func main() {
 		current_jobs, _ := strconv.Atoi(stat["current-jobs-ready"])
 
 		switch {
-		case current_jobs >= WARN_LIMIT && current_jobs < CRIT_LIMIT:
+		case current_jobs >= *WARN_LIMIT && current_jobs < *CRIT_LIMIT:
 			errors = append(errors, fmt.Sprintf("%s/%d", t, current_jobs))
 			setExitCode(1)
-		case current_jobs >= CRIT_LIMIT:
+		case current_jobs >= *CRIT_LIMIT:
 			errors = append(errors, fmt.Sprintf("%s/%d", t, current_jobs))
 			setExitCode(2)
 		}
