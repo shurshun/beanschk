@@ -3,7 +3,7 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 NAME := beanschk
-VERSION := v1.0.0
+VERSION := $$(git describe --tags `git rev-list --tags --max-count=1`)
 
 build:
 	go build -ldflags "-X main.Version=$(VERSION)"
