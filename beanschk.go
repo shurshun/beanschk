@@ -1,26 +1,19 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"github.com/kr/beanstalk"
+	"github.com/urfave/cli"
 	"os"
 	"strconv"
 	"strings"
+	"net"
 )
 
 var (
-	LOCAL_SRV  = flag.String("h", "127.0.0.1:11300", "ip:port of the local beanstalk server")
-	CRIT_LIMIT = flag.Int("c", 1000, "Critical limit")
-	WARN_LIMIT = flag.Int("w", 500, "Warning limit")
-
 	errors    []string
 	exit_code int = 0
 )
-
-func init() {
-	flag.Parse()
-}
 
 func check(e error) {
 	if e != nil {
@@ -39,34 +32,32 @@ func setExitCode(code int) {
 	}
 }
 
-func main() {
-	c, err := beanstalk.Dial("tcp", *LOCAL_SRV)
+func checkTubes(c *cli.Context) {
+	beansClient, err := beanstalk.Dial("tcp", net.JoinHostPort(c.String("bean-addr"), c.String("bean-port")))
 
 	check(err)
 
-	defer c.Close()
+	defer beansClient.Close()
 
-	localTubes, err := c.ListTubes()
+	localTubes, err := beansClient.ListTubes()
 
 	check(err)
 
 	for _, t := range localTubes {
-		tube := &beanstalk.Tube{c, t}
+		tube := &beanstalk.Tube{beansClient, t}
 
 		stat, err := tube.Stats()
 
-		if err != nil {
-			continue
-		}
+		check(err)
 
-		current_jobs, _ := strconv.Atoi(stat["current-jobs-ready"])
+		jobsCount, _ := strconv.Atoi(stat["current-jobs-ready"])
 
 		switch {
-		case current_jobs >= *WARN_LIMIT && current_jobs < *CRIT_LIMIT:
-			errors = append(errors, fmt.Sprintf("%s/%d", t, current_jobs))
+		case jobsCount >= c.Int("warn-limit") && jobsCount < c.Int("crit-limit"):
+			errors = append(errors, fmt.Sprintf("%s/%d", t, jobsCount))
 			setExitCode(1)
-		case current_jobs >= *CRIT_LIMIT:
-			errors = append(errors, fmt.Sprintf("%s/%d", t, current_jobs))
+		case jobsCount >= c.Int("crit-limit"):
+			errors = append(errors, fmt.Sprintf("%s/%d", t, jobsCount))
 			setExitCode(2)
 		}
 	}
@@ -76,5 +67,44 @@ func main() {
 	}
 
 	exit(exit_code, "ok")
+}
 
+func main() {
+	app := cli.NewApp()
+
+	app.Name = "beanschk"
+	app.Usage = "Beanstalkd tubes checker"
+
+	app.Flags = []cli.Flag{
+		cli.StringFlag{
+			Name:   "bean-addr, a",
+			Value:  "localhost",
+			Usage:  "Beanstalk server addr",
+			EnvVar: "BEAN_ADDR",
+		},
+		cli.StringFlag{
+			Name:   "bean-port, p",
+			Value:  "11300",
+			Usage:  "Beanstalk server port",
+			EnvVar: "BEAN_PORT",
+		},
+		cli.IntFlag{
+			Name:   "warn-limit, w",
+			Value:  500,
+			Usage:  "Warning limit",
+			EnvVar: "WARN_LIMIT",
+		},
+		cli.IntFlag{
+			Name:   "crit-limit, c",
+			Value:  1000,
+			Usage:  "Critical limit",
+			EnvVar: "CRIT_LIMIT",
+		},
+	}
+
+	app.Action = func(c *cli.Context) {
+		checkTubes(c)
+	}
+
+	app.Run(os.Args)
 }
