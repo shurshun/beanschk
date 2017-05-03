@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"github.com/kr/beanstalk"
 	"github.com/urfave/cli"
+	"net"
 	"os"
 	"strconv"
 	"strings"
-	"net"
 )
 
 var (
